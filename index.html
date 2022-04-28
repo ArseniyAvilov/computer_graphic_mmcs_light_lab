@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>WebGL Demo</title>
+    <link rel="stylesheet" href="./style.css" type="text/css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"
+            integrity="sha512-zhHQR0/H5SEBL3Wn6yYSaTTZej12z0hVZKOv3TwCUXT1z5qeqGcXJLLrbERYRScEDDpYIJhPC1fk31gqR783iQ=="
+            crossorigin="anonymous" defer>
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/gl-matrix@3.0.0/gl-matrix-min.js"></script>
+</head>
+
+<body>
+<canvas id="glcanvas" width="1280" height="720"></canvas>
+<div id="uiContainer">
+    <div id="ui">
+      <div id="shininess"></div>
+    </div>
+  </div>
+</body>
+
+<!-- Ламберт -->
+<script id="LambertVS" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+
+    varying vec4 vVertex;    
+    varying vec3 vNormal;
+    
+    void main(void) {
+        // рассчитываем нормаль и положение вершины с учетом трансформаций
+        vNormal = normalize(uNMatrix * aVertexNormal);
+        vVertex = uMVMatrix * vec4(aVertexPosition, 1.0);
+    
+        gl_Position = uPMatrix * vVertex;
+    }
+</script>
+
+<script id="LambertFS" type="x-shader/x-fragment">
+    precision mediump float;
+
+    uniform vec3 uColor;
+
+    varying vec4 vVertex;
+    varying vec3 vNormal;
+
+    uniform mat4 uLightMatrix;
+    uniform vec3 uPointLightLocation;
+    
+    void main(void) {
+        // получаем вектор направления освещения
+        uLightMatrix;
+        vec4 lightLocation = vec4(uPointLightLocation, 1.0);
+        vec3 lightDirection = lightLocation.xyz - vVertex.xyz;
+        
+        // нормализованный вектор направления освещения
+        vec3 L = normalize(lightDirection);
+        // нормализуем нормаль, переданную из вершинного шейдера
+        vec3 N = normalize(vNormal);
+        // находим силу света по Ламберту
+        float lambertComponent = max(dot(N, -L), 0.0);
+        // получаем итоговый цвет из цвета объекта и освещения
+        
+        vec3 diffuseLight = uColor * lambertComponent;
+        gl_FragColor = vec4(diffuseLight, 1.0);
+    }
+</script>
+
+
+<!-- Фонг -->
+<script id="PhongVS" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+    
+    varying vec3 vNormal;
+    varying vec4 vVertex;
+    
+    void main(void) {
+        // рассчитываем нормаль и положение вершины с учетом трансформаций
+        vNormal = normalize(uNMatrix * aVertexNormal);
+        vVertex = uMVMatrix * vec4(aVertexPosition, 1.0);
+    
+        gl_Position = uPMatrix * vVertex;
+    }
+</script>
+
+<script id="PhongFS" type="x-shader/x-fragment">
+    precision mediump float;
+
+    uniform vec3 uColor;
+    
+    varying vec4 vVertex;
+    varying vec3 vNormal;
+    varying vec4 vFinalColor;
+    
+    uniform mat4 uLightMatrix;
+    uniform vec3 uPointLightLocation;
+    
+    const float shiness = 30.0;
+    
+    // фоновое освещение остается постоянным
+    const vec3 ambientLightColor = vec3(0.2, 0.2, 0.2);
+        
+    void main(void) {
+        // получаем вектор освещения
+        uLightMatrix;
+        vec4 lightLocation = vec4(uPointLightLocation, 1.0);
+        vec3 lightDirection = lightLocation.xyz - vVertex.xyz;
+        
+        // освещение по Ламберту в качестве диффузного освещения
+        vec3 N = normalize(vNormal);
+        vec3 L = normalize(lightDirection);
+        float lambertComponent = max(dot(N, -L), 0.0);
+        vec3 diffuseLight = uColor * lambertComponent;
+        
+        // рассчитываем блики
+        vec3 eyeVec = -vec3(vVertex.xyz);
+        vec3 R = normalize(eyeVec);
+        vec3 E = reflect(L, N);
+        float specular = pow(max(dot(E, R), 0.0), shiness);
+        vec3 specularLight = uColor * specular; 
+        
+        // итоговый цвет
+        vec3 sumColor = ambientLightColor + diffuseLight + specularLight;
+        
+        gl_FragColor = vec4(sumColor, 1.0);
+    }
+</script>
+
+
+<!-- Блинн -->
+<script id="BlinnVS" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+    
+    varying vec3 vNormal;
+    varying vec4 vVertex;
+    
+    void main(void) {
+        // рассчитываем нормаль и положение вершины с учетом трансформаций
+        vNormal = normalize(uNMatrix * aVertexNormal);
+        vVertex = uMVMatrix * vec4(aVertexPosition, 1.0);
+    
+        gl_Position = uPMatrix * vVertex;
+    }
+</script>
+
+<script id="BlinnFS" type="x-shader/x-fragment">
+    precision mediump float;
+
+    uniform vec3 uColor;
+    
+    varying vec4 vVertex;
+    varying vec3 vNormal;
+    varying vec4 vFinalColor;
+    
+    uniform mat4 uLightMatrix;
+    uniform vec3 uPointLightLocation;
+    
+    const float shiness = 30.0;
+    
+    // фоновое освещение остается постоянным
+    const vec3 ambientLightColor = vec3(0.2, 0.2, 0.2);
+    void main(void) {
+        // получаем вектор освещения
+        uLightMatrix ;
+        vec4 lightLocation = vec4(uPointLightLocation, 1.0);
+        vec3 lightDirection = lightLocation.xyz - vVertex.xyz;
+        
+        // освещение по Ламберту в качестве диффузного освещения
+        vec3 N = normalize(vNormal);
+        vec3 L = normalize(lightDirection);
+        float lambertComponent = max(dot(N, -L), 0.0);
+        vec3 diffuseLight = uColor * lambertComponent;
+        
+        // находим средний вектор между освещением и наблюдателем
+        vec3 eyeVec = -vec3(vVertex.xyz);
+        vec3 R = normalize(eyeVec);
+        vec3 halfwayVector = normalize(-L + R);
+        
+        float specular = pow(max(dot(halfwayVector, N), 0.0), shiness);
+        vec3 specularLight = uColor * specular; 
+        
+        // итоговый цвет
+        vec3 sumColor = ambientLightColor + diffuseLight + specularLight;
+        
+        gl_FragColor = vec4(sumColor, 1.0);
+    }
+</script>
+
+
+<!-- Сэл-шейдинг -->
+<script id="CelVS" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+
+    varying vec4 vVertex;    
+    varying vec3 vNormal;
+    
+    void main(void) {
+        // рассчитываем нормаль и положение вершины с учетом трансформаций
+        vNormal = normalize(uNMatrix * aVertexNormal);
+        vVertex = uMVMatrix * vec4(aVertexPosition, 1.0);
+    
+        gl_Position = uPMatrix * vVertex;
+    }
+</script>
+
+<script id="CelFS" type="x-shader/x-fragment">
+    precision mediump float;
+
+    uniform vec3 uColor;
+
+    varying vec4 vVertex;
+    varying vec3 vNormal;
+
+    uniform mat4 uLightMatrix;
+    uniform vec3 uPointLightLocation;
+    
+    void main(void) {
+        // получаем вектор направления освещения
+        uLightMatrix;
+        vec4 lightLocation = vec4(uPointLightLocation, 1.0);
+        vec3 lightDirection = lightLocation.xyz - vVertex.xyz;
+        
+        // нормализованный вектор направления освещения
+        vec3 L = normalize(lightDirection);
+        // нормализуем нормаль, переданную из вершинного шейдера
+        vec3 N = normalize(vNormal);
+        // находим силу света по Ламберту
+        float lambertComponent = max(dot(N, -L), 0.0);
+        
+        // делаем резкие границы между порогами освещения
+        vec3 diffuseLight;
+        if (lambertComponent > 0.95) {
+            diffuseLight = uColor;
+        } else if (lambertComponent > 0.5) {
+            diffuseLight = uColor * 0.7;
+        } else if (lambertComponent > 0.2) {
+            diffuseLight = uColor * 0.2;
+        } else {
+            diffuseLight = uColor * 0.05;
+        }
+        gl_FragColor = vec4(diffuseLight, 1.0);
+    }
+</script>
+
+
+<!-- Minnaert -->
+<script id="MinnaertVS" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+
+    varying vec4 vVertex;    
+    varying vec3 vNormal;
+    
+    void main(void) {
+        // рассчитываем нормаль и положение вершины с учетом трансформаций
+        vNormal = normalize(uNMatrix * aVertexNormal);
+        vVertex = uMVMatrix * vec4(aVertexPosition, 1.0);
+    
+        gl_Position = uPMatrix * vVertex;
+    }
+</script>
+
+<script id="MinnaertFS" type="x-shader/x-fragment">
+    precision mediump float;
+
+    uniform vec3 uColor;
+
+    varying vec4 vVertex;
+    varying vec3 vNormal;
+
+    uniform mat4 uLightMatrix;
+    uniform vec3 uPointLightLocation;
+    
+    const float k = 0.7;
+    
+    void main(void) {
+        // получаем вектор направления освещения
+        uLightMatrix;
+        vec4 lightLocation = vec4(uPointLightLocation, 1.0);
+        vec3 lightDirection = lightLocation.xyz - vVertex.xyz;
+        
+        // нормализованный вектор направления освещения
+        vec3 L = normalize(lightDirection);
+        // нормализуем нормаль, переданную из вершинного шейдера
+        vec3 N = normalize(vNormal);
+        
+        // вектор наблюдателя
+        vec3 eyeVec = vec3(vVertex.xyz);
+        vec3 R = normalize(eyeVec);
+        
+        // находим коэффициенты согласно формуле Minnaert
+        float p1 = pow(max(dot(N, -L), 0.0), 1.0 + k);
+        float p2 = pow(1.0 - dot(N, R), 1.0 - k);
+    
+        vec3 diffuseLight = uColor * p1 * p2;
+        gl_FragColor = vec4(diffuseLight, 1.0);
+    }
+</script>
+
+<script src="./script.js" defer></script>
+<script src="https://webglfundamentals.org/webgl/resources/webgl-utils.js"></script>
+<script src="https://webglfundamentals.org/webgl/resources/primitives.js"></script>
+<script src="https://webglfundamentals.org/webgl/resources/texture-utils.js"></script>
+<script src="https://webglfundamentals.org/webgl/resources/webgl-lessons-ui.js"></script>
+<script src="https://webglfundamentals.org/webgl/resources/m4.js"></script>
+</html>
